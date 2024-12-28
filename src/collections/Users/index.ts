@@ -4,7 +4,8 @@ type Role = 'administrator' | 'editor' | 'author' | 'subscriber'
 
 // Define access control functions based on user roles
 const isAdministrator = ({ req: { user } }) => {
-  return user?.role === 'administrator'
+  if (!user) return false
+  return user.role === 'administrator' || user.roleSelect === 'administrator'
 }
 
 export const Users: CollectionConfig = {
@@ -34,7 +35,7 @@ export const Users: CollectionConfig = {
     // Users can read their own profile, admins can read all
     read: ({ req: { user } }) => {
       if (!user) return false
-      if (user.role === 'administrator') return true
+      if (user.role === 'administrator' || user.roleSelect === 'administrator') return true
       return {
         id: {
           equals: user.id,
@@ -44,7 +45,7 @@ export const Users: CollectionConfig = {
     // Users can update their own profile, admins can update all
     update: ({ req: { user } }) => {
       if (!user) return false
-      if (user.role === 'administrator') return true
+      if (user.role === 'administrator' || user.roleSelect === 'administrator') return true
       return {
         id: {
           equals: user.id,
@@ -53,25 +54,97 @@ export const Users: CollectionConfig = {
     },
   },
   admin: {
-    defaultColumns: ['name', 'email', 'role'],
+    defaultColumns: ['name', 'email', 'roleSelect', 'nickname', 'status'],
     useAsTitle: 'name',
-    description: 'Users with WordPress-like role-based permissions',
+    description: 'Users with WordPress-like role-based permissions and metadata',
     group: 'Admin',
     // Hide the Users collection from subscribers in the sidebar
-    hidden: ({ user }) => user?.role === 'subscriber',
+    hidden: ({ user }) => {
+      if (!user) return true
+      return user.role === 'subscriber' || user.roleSelect === 'subscriber'
+    },
   },
   fields: [
+    // Basic user fields (wp_users equivalent)
     {
       name: 'name',
       type: 'text',
       required: true,
       admin: {
-        description: 'Your display name',
+        description: 'Full name (maps to display_name in WordPress)',
       },
     },
     {
-      name: 'role',
+      name: 'firstName',
+      type: 'text',
+      admin: {
+        description: 'First name',
+      },
+    },
+    {
+      name: 'lastName',
+      type: 'text',
+      admin: {
+        description: 'Last name',
+      },
+    },
+    {
+      name: 'nickname',
+      type: 'text',
+      admin: {
+        description: 'Nickname (required in WordPress)',
+      },
+    },
+    {
+      name: 'description',
+      type: 'textarea',
+      admin: {
+        description: 'Biographical info',
+      },
+    },
+    {
+      name: 'status',
       type: 'select',
+      defaultValue: 'active',
+      options: [
+        {
+          label: 'Active',
+          value: 'active',
+        },
+        {
+          label: 'Spam',
+          value: 'spam',
+        },
+        {
+          label: 'Deleted',
+          value: 'deleted',
+        },
+      ],
+      admin: {
+        position: 'sidebar',
+        description: 'User status (similar to WordPress user_status)',
+      },
+    },
+    {
+      name: 'url',
+      type: 'text',
+      admin: {
+        description: 'Website URL',
+      },
+    },
+    {
+      name: 'locale',
+      type: 'text',
+      defaultValue: 'en_US',
+      admin: {
+        description: 'User language preference',
+      },
+    },
+    // Role fields
+    {
+      name: 'roleSelect',
+      type: 'select',
+      required: true,
       defaultValue: 'subscriber',
       options: [
         {
@@ -92,9 +165,7 @@ export const Users: CollectionConfig = {
         },
       ],
       access: {
-        // Only administrators can change roles
         update: isAdministrator,
-        // Only show role field to administrators
         read: isAdministrator,
       },
       admin: {
@@ -103,14 +174,75 @@ export const Users: CollectionConfig = {
       },
     },
     {
+      name: 'role',
+      type: 'text',
+      required: true,
+      defaultValue: 'subscriber',
+      validate: (val) => {
+        const validRoles = ['administrator', 'editor', 'author', 'subscriber']
+        return validRoles.includes(val) || 'Invalid role'
+      },
+      hooks: {
+        beforeChange: [
+          ({ siblingData }) => {
+            return siblingData?.roleSelect || 'subscriber'
+          },
+        ],
+      },
+      admin: {
+        position: 'sidebar',
+        description: 'The role determines what actions the user can perform',
+        style: {
+          display: 'none',
+        },
+      },
+    },
+    // Authentication fields
+    {
       name: 'email',
       type: 'email',
       required: true,
       unique: true,
       admin: {
-        description: 'Your email address (used for login)',
+        description: 'Email address (used for login)',
       },
     },
+    // Essential WordPress metadata fields
+    {
+      name: 'meta',
+      type: 'group',
+      admin: {
+        description: 'Essential WordPress user metadata',
+      },
+      fields: [
+        {
+          name: 'capabilities',
+          type: 'json',
+          admin: {
+            description: 'WordPress capabilities (wp_capabilities)',
+          },
+        },
+        {
+          name: 'syntaxHighlighting',
+          type: 'checkbox',
+          defaultValue: true,
+          admin: {
+            description: 'Syntax Highlighting enabled',
+          },
+        },
+      ],
+    },
   ],
+  hooks: {
+    beforeChange: [
+      ({ data }) => {
+        // Set nickname to name if not provided
+        if (!data.nickname && data.name) {
+          data.nickname = data.name
+        }
+        return data
+      },
+    ],
+  },
   timestamps: true,
 }
