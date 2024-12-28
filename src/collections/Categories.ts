@@ -1,29 +1,28 @@
-import type { CollectionConfig, PayloadRequest } from 'payload'
+import type { CollectionConfig } from 'payload'
 import { anyone } from '../access/anyone'
 
-type Role = 'administrator' | 'editor' | 'author' | 'contributor' | 'subscriber'
-
-// Define role-based access control
-const canManageCategories = ({ req: { user } }: { req: PayloadRequest }): boolean => {
-  if (!user) return false
-  return ['administrator', 'editor'].includes((user.role as Role) || '')
+// Import access control functions
+const isEditor = ({ req: { user } }) => {
+  return ['administrator', 'editor'].includes(user?.role || '')
 }
 
 export const Categories: CollectionConfig = {
   slug: 'categories',
   access: {
-    // Only administrators and editors can create categories
-    create: canManageCategories,
-    // Only administrators and editors can delete categories
-    delete: canManageCategories,
+    // Only editors and administrators can create categories
+    create: isEditor,
+    // Only editors and administrators can delete categories
+    delete: isEditor,
     // Anyone can read categories
     read: anyone,
-    // Only administrators and editors can update categories
-    update: canManageCategories,
+    // Only editors and administrators can update categories
+    update: isEditor,
   },
   admin: {
     useAsTitle: 'title',
-    description: 'Categories can only be managed by administrators and editors.',
+    description: 'Categories can be managed by editors and administrators',
+    group: 'Content',
+    hidden: ({ user }) => user?.role === 'subscriber',
   },
   fields: [
     {

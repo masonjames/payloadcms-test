@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 
-type Role = 'administrator' | 'editor' | 'author' | 'contributor' | 'subscriber'
+type Role = 'administrator' | 'editor' | 'author' | 'subscriber'
 
 // Define access control functions based on user roles
 const isAdministrator = ({ req: { user } }) => {
@@ -23,8 +23,10 @@ export const Users: CollectionConfig = {
     },
   },
   access: {
-    // Only administrators can access admin UI
-    admin: isAdministrator,
+    // Allow all authenticated users to access admin UI
+    admin: ({ req: { user } }) => {
+      return Boolean(user)
+    },
     // Only administrators can create new users
     create: isAdministrator,
     // Only administrators can delete users
@@ -53,13 +55,19 @@ export const Users: CollectionConfig = {
   admin: {
     defaultColumns: ['name', 'email', 'role'],
     useAsTitle: 'name',
-    description: 'Users with role-based permissions',
+    description: 'Users with WordPress-like role-based permissions',
+    group: 'Admin',
+    // Hide the Users collection from subscribers in the sidebar
+    hidden: ({ user }) => user?.role === 'subscriber',
   },
   fields: [
     {
       name: 'name',
       type: 'text',
       required: true,
+      admin: {
+        description: 'Your display name',
+      },
     },
     {
       name: 'role',
@@ -79,10 +87,6 @@ export const Users: CollectionConfig = {
           value: 'author',
         },
         {
-          label: 'Contributor',
-          value: 'contributor',
-        },
-        {
           label: 'Subscriber',
           value: 'subscriber',
         },
@@ -90,10 +94,21 @@ export const Users: CollectionConfig = {
       access: {
         // Only administrators can change roles
         update: isAdministrator,
+        // Only show role field to administrators
+        read: isAdministrator,
       },
       admin: {
         position: 'sidebar',
         description: 'The role determines what actions the user can perform',
+      },
+    },
+    {
+      name: 'email',
+      type: 'email',
+      required: true,
+      unique: true,
+      admin: {
+        description: 'Your email address (used for login)',
       },
     },
   ],

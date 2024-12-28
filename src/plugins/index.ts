@@ -20,8 +20,18 @@ const generateTitle: GenerateTitle<Post | Page> = ({ doc }) => {
 
 const generateURL: GenerateURL<Post | Page> = ({ doc }) => {
   const url = getServerSideURL()
-
   return doc?.slug ? `${url}/${doc.slug}` : url
+}
+
+// Define access control functions
+const canAccessRedirects = ({ req: { user } }) => {
+  if (!user) return false
+  return ['administrator', 'editor'].includes(user.role || '')
+}
+
+const canAccessForms = ({ req: { user } }) => {
+  if (!user) return false
+  return ['administrator', 'editor'].includes(user.role || '')
 }
 
 export const plugins: Plugin[] = [
@@ -44,6 +54,15 @@ export const plugins: Plugin[] = [
       },
       hooks: {
         afterChange: [revalidateRedirects],
+      },
+      admin: {
+        hidden: ({ user }) => user?.role === 'subscriber',
+      },
+      access: {
+        create: canAccessRedirects,
+        read: canAccessRedirects,
+        update: canAccessRedirects,
+        delete: canAccessRedirects,
       },
     },
   }),
@@ -77,6 +96,26 @@ export const plugins: Plugin[] = [
           }
           return field
         })
+      },
+      admin: {
+        hidden: ({ user }) => user?.role === 'subscriber',
+      },
+      access: {
+        create: canAccessForms,
+        read: canAccessForms,
+        update: canAccessForms,
+        delete: canAccessForms,
+      },
+    },
+    formSubmissionOverrides: {
+      admin: {
+        hidden: ({ user }) => user?.role === 'subscriber',
+      },
+      access: {
+        create: () => true, // Allow anyone to submit forms
+        read: canAccessForms,
+        update: canAccessForms,
+        delete: canAccessForms,
       },
     },
   }),

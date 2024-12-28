@@ -160,15 +160,15 @@ export interface Post {
     };
     [k: string]: unknown;
   };
-  relatedPosts?: (number | Post)[] | null;
   categories?: (number | Category)[] | null;
+  authors: (number | User)[];
+  relatedPosts?: (number | Post)[] | null;
   meta?: {
     title?: string | null;
     image?: (number | null) | Media;
     description?: string | null;
   };
   publishedAt?: string | null;
-  authors?: (number | User)[] | null;
   populatedAuthors?:
     | {
         id?: string | null;
@@ -300,7 +300,7 @@ export interface Category {
 export interface User {
   id: number;
   name: string;
-  role?: ('administrator' | 'editor' | 'author' | 'contributor' | 'subscriber') | null;
+  role?: ('administrator' | 'editor' | 'author' | 'subscriber') | null;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -934,8 +934,9 @@ export interface PostsSelect<T extends boolean = true> {
   title?: T;
   heroImage?: T;
   content?: T;
-  relatedPosts?: T;
   categories?: T;
+  authors?: T;
+  relatedPosts?: T;
   meta?:
     | T
     | {
@@ -944,7 +945,6 @@ export interface PostsSelect<T extends boolean = true> {
         description?: T;
       };
   publishedAt?: T;
-  authors?: T;
   populatedAuthors?:
     | T
     | {
