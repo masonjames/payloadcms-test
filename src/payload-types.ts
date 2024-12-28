@@ -300,6 +300,24 @@ export interface Category {
 export interface User {
   id: number;
   name: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  description?: string | null;
+  url?: string | null;
+  locale?: string | null;
+  meta?: {
+    capabilities?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    syntaxHighlighting?: boolean | null;
+  };
+  status?: ('active' | 'spam' | 'deleted') | null;
   roleSelect: 'administrator' | 'editor' | 'author' | 'subscriber';
   role: string;
   updatedAt: string;
@@ -1076,6 +1094,18 @@ export interface CategoriesSelect<T extends boolean = true> {
  */
 export interface UsersSelect<T extends boolean = true> {
   name?: T;
+  firstName?: T;
+  lastName?: T;
+  description?: T;
+  url?: T;
+  locale?: T;
+  meta?:
+    | T
+    | {
+        capabilities?: T;
+        syntaxHighlighting?: T;
+      };
+  status?: T;
   roleSelect?: T;
   role?: T;
   updatedAt?: T;

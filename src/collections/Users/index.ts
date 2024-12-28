@@ -54,9 +54,9 @@ export const Users: CollectionConfig = {
     },
   },
   admin: {
-    defaultColumns: ['name', 'email', 'roleSelect', 'nickname', 'status'],
+    defaultColumns: ['name', 'email', 'roleSelect', 'status'],
     useAsTitle: 'name',
-    description: 'Users with WordPress-like role-based permissions and metadata',
+    description: '',
     group: 'Admin',
     // Hide the Users collection from subscribers in the sidebar
     hidden: ({ user }) => {
@@ -65,46 +65,105 @@ export const Users: CollectionConfig = {
     },
   },
   fields: [
-    // Basic user fields (wp_users equivalent)
+    // Required fields - always visible
     {
       name: 'name',
       type: 'text',
       required: true,
       admin: {
-        description: 'Full name (maps to display_name in WordPress)',
+        description: 'Full name',
       },
     },
     {
-      name: 'firstName',
-      type: 'text',
+      name: 'email',
+      type: 'email',
+      required: true,
+      unique: true,
       admin: {
-        description: 'First name',
+        description: 'Email address (used for login)',
       },
     },
+    // Optional fields in tabs
     {
-      name: 'lastName',
-      type: 'text',
-      admin: {
-        description: 'Last name',
-      },
+      type: 'tabs',
+      tabs: [
+        {
+          label: 'Profile',
+          fields: [
+            {
+              name: 'firstName',
+              type: 'text',
+              admin: {
+                description: 'First name',
+              },
+            },
+            {
+              name: 'lastName',
+              type: 'text',
+              admin: {
+                description: 'Last name',
+              },
+            },
+            {
+              name: 'description',
+              type: 'textarea',
+              admin: {
+                description: 'Biographical info',
+              },
+            },
+          ],
+        },
+        {
+          label: 'Preferences',
+          fields: [
+            {
+              name: 'url',
+              type: 'text',
+              admin: {
+                description: 'Website URL',
+              },
+            },
+            {
+              name: 'locale',
+              type: 'text',
+              defaultValue: 'en_US',
+              admin: {
+                description: 'User language preference',
+              },
+            },
+            // Essential WordPress metadata fields
+            {
+              name: 'meta',
+              type: 'group',
+              admin: {
+                description: 'Essential WordPress user metadata',
+              },
+              fields: [
+                {
+                  name: 'capabilities',
+                  type: 'json',
+                  admin: {
+                    description: 'WordPress capabilities (wp_capabilities)',
+                  },
+                },
+                {
+                  name: 'syntaxHighlighting',
+                  type: 'checkbox',
+                  defaultValue: true,
+                  admin: {
+                    description: 'Syntax Highlighting enabled',
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
     },
-    {
-      name: 'nickname',
-      type: 'text',
-      admin: {
-        description: 'Nickname (required in WordPress)',
-      },
-    },
-    {
-      name: 'description',
-      type: 'textarea',
-      admin: {
-        description: 'Biographical info',
-      },
-    },
+    // Sidebar fields
     {
       name: 'status',
-      type: 'select',
+      type: 'radio',
       defaultValue: 'active',
       options: [
         {
@@ -122,28 +181,13 @@ export const Users: CollectionConfig = {
       ],
       admin: {
         position: 'sidebar',
-        description: 'User status (similar to WordPress user_status)',
-      },
-    },
-    {
-      name: 'url',
-      type: 'text',
-      admin: {
-        description: 'Website URL',
-      },
-    },
-    {
-      name: 'locale',
-      type: 'text',
-      defaultValue: 'en_US',
-      admin: {
-        description: 'User language preference',
+        description: 'User status',
       },
     },
     // Role fields
     {
       name: 'roleSelect',
-      type: 'select',
+      type: 'radio',
       required: true,
       defaultValue: 'subscriber',
       options: [
@@ -196,41 +240,6 @@ export const Users: CollectionConfig = {
           display: 'none',
         },
       },
-    },
-    // Authentication fields
-    {
-      name: 'email',
-      type: 'email',
-      required: true,
-      unique: true,
-      admin: {
-        description: 'Email address (used for login)',
-      },
-    },
-    // Essential WordPress metadata fields
-    {
-      name: 'meta',
-      type: 'group',
-      admin: {
-        description: 'Essential WordPress user metadata',
-      },
-      fields: [
-        {
-          name: 'capabilities',
-          type: 'json',
-          admin: {
-            description: 'WordPress capabilities (wp_capabilities)',
-          },
-        },
-        {
-          name: 'syntaxHighlighting',
-          type: 'checkbox',
-          defaultValue: true,
-          admin: {
-            description: 'Syntax Highlighting enabled',
-          },
-        },
-      ],
     },
   ],
   hooks: {
