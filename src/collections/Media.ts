@@ -9,24 +9,54 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 import { anyone } from '../access/anyone'
-import { authenticated } from '../access/authenticated'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
+// Define role-based access control functions
+const canManageMedia = ({ req: { user } }): boolean => {
+  if (!user) return false
+  return ['administrator', 'editor', 'author'].includes(user.role || '')
+}
+
 export const Media: CollectionConfig = {
   slug: 'media',
   access: {
-    create: authenticated,
-    delete: authenticated,
+    // Only administrators, editors, and authors can create media
+    create: canManageMedia,
+    // Only administrators and editors can delete media
+    delete: ({ req: { user } }): boolean => {
+      if (!user) return false
+      return ['administrator', 'editor'].includes(user.role || '')
+    },
+    // Anyone can read media
     read: anyone,
-    update: authenticated,
+    // Only administrators, editors, and authors can update media
+    update: canManageMedia,
+  },
+  admin: {
+    description: 'Upload and manage media files with WordPress-like permissions',
+    group: 'Content',
+    hidden: ({ user }) => user?.role === 'subscriber',
   },
   fields: [
     {
       name: 'alt',
       type: 'text',
-      //required: true,
+      required: false,
+      admin: {
+        description: 'Alternative text for accessibility (recommended)',
+      },
+      hooks: {
+        beforeChange: [
+          ({ value, operation }) => {
+            if (operation === 'create' && !value) {
+              return 'Image'
+            }
+            return value
+          },
+        ],
+      },
     },
     {
       name: 'caption',
@@ -38,6 +68,19 @@ export const Media: CollectionConfig = {
       }),
     },
   ],
+  hooks: {
+    beforeChange: [
+      ({ data }) => {
+        if (!data.alt) {
+          return {
+            ...data,
+            alt: 'Image',
+          }
+        }
+        return data
+      },
+    ],
+  },
   upload: {
     // Upload to the public/media directory in Next.js making them publicly accessible even outside of Payload
     staticDir: path.resolve(dirname, '../../public/media'),

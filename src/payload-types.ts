@@ -160,15 +160,15 @@ export interface Post {
     };
     [k: string]: unknown;
   };
-  relatedPosts?: (number | Post)[] | null;
   categories?: (number | Category)[] | null;
+  authors: (number | User)[];
+  relatedPosts?: (number | Post)[] | null;
   meta?: {
     title?: string | null;
     image?: (number | null) | Media;
     description?: string | null;
   };
   publishedAt?: string | null;
-  authors?: (number | User)[] | null;
   populatedAuthors?:
     | {
         id?: string | null;
@@ -280,6 +280,7 @@ export interface Media {
 export interface Category {
   id: number;
   title: string;
+  description?: string | null;
   parent?: (number | null) | Category;
   breadcrumbs?:
     | {
@@ -298,7 +299,26 @@ export interface Category {
  */
 export interface User {
   id: number;
-  name?: string | null;
+  name: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  description?: string | null;
+  url?: string | null;
+  locale?: string | null;
+  meta?: {
+    capabilities?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    syntaxHighlighting?: boolean | null;
+  };
+  status?: ('active' | 'spam' | 'deleted') | null;
+  role: 'administrator' | 'editor' | 'author' | 'subscriber';
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -932,8 +952,9 @@ export interface PostsSelect<T extends boolean = true> {
   title?: T;
   heroImage?: T;
   content?: T;
-  relatedPosts?: T;
   categories?: T;
+  authors?: T;
+  relatedPosts?: T;
   meta?:
     | T
     | {
@@ -942,7 +963,6 @@ export interface PostsSelect<T extends boolean = true> {
         description?: T;
       };
   publishedAt?: T;
-  authors?: T;
   populatedAuthors?:
     | T
     | {
@@ -1054,6 +1074,7 @@ export interface MediaSelect<T extends boolean = true> {
  */
 export interface CategoriesSelect<T extends boolean = true> {
   title?: T;
+  description?: T;
   parent?: T;
   breadcrumbs?:
     | T
@@ -1072,6 +1093,19 @@ export interface CategoriesSelect<T extends boolean = true> {
  */
 export interface UsersSelect<T extends boolean = true> {
   name?: T;
+  firstName?: T;
+  lastName?: T;
+  description?: T;
+  url?: T;
+  locale?: T;
+  meta?:
+    | T
+    | {
+        capabilities?: T;
+        syntaxHighlighting?: T;
+      };
+  status?: T;
+  role?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;

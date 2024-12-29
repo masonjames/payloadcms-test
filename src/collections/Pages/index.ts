@@ -1,6 +1,4 @@
-import type { CollectionConfig } from 'payload'
-
-import { authenticated } from '../../access/authenticated'
+import type { CollectionConfig, Where } from 'payload'
 import { authenticatedOrPublished } from '../../access/authenticatedOrPublished'
 import { Archive } from '../../blocks/ArchiveBlock/config'
 import { CallToAction } from '../../blocks/CallToAction/config'
@@ -21,41 +19,62 @@ import {
   PreviewField,
 } from '@payloadcms/plugin-seo/fields'
 
-export const Pages: CollectionConfig<'pages'> = {
-  slug: 'pages',
-  access: {
-    create: authenticated,
-    delete: authenticated,
-    read: authenticatedOrPublished,
-    update: authenticated,
-  },
-  // This config controls what's populated by default when a page is referenced
-  // https://payloadcms.com/docs/queries/select#defaultpopulate-collection-config-property
-  // Type safe if the collection slug generic is passed to `CollectionConfig` - `CollectionConfig<'pages'>
-  defaultPopulate: {
-    title: true,
-    slug: true,
-  },
-  admin: {
-    defaultColumns: ['title', 'slug', 'updatedAt'],
-    livePreview: {
-      url: ({ data, req }) => {
-        const path = generatePreviewPath({
-          slug: typeof data?.slug === 'string' ? data.slug : '',
-          collection: 'pages',
-          req,
-        })
+// Define role-based access control functions
+const canAccessAdmin = ({ req: { user } }): boolean => {
+  return Boolean(user) // All authenticated users can view pages in admin
+}
 
-        return path
+const canCreate = ({ req: { user } }): boolean => {
+  if (!user) return false
+  return ['administrator', 'editor'].includes(user.role || '')
+}
+
+const canUpdate = ({ req: { user } }): boolean | Where => {
+  if (!user) return false
+
+  // Administrators and editors can update any page
+  if (['administrator', 'editor'].includes(user.role || '')) return true
+
+  // Authors can only update their own pages
+  if (user.role === 'author') {
+    return {
+      createdBy: {
+        equals: user.id,
       },
-    },
-    preview: (data, { req }) =>
+    }
+  }
+
+  return false
+}
+
+const canDelete = ({ req: { user } }): boolean => {
+  if (!user) return false
+
+  // Only administrators and editors can delete pages
+  return ['administrator', 'editor'].includes(user.role || '')
+}
+
+export const Pages: CollectionConfig = {
+  slug: 'pages',
+  admin: {
+    defaultColumns: ['title', 'slug', 'updatedAt', '_status'],
+    description: 'Create and manage pages with WordPress-like permissions',
+    group: 'Content',
+    useAsTitle: 'title',
+    hidden: ({ user }) => user?.role === 'subscriber',
+    preview: (doc, { req }) =>
       generatePreviewPath({
-        slug: typeof data?.slug === 'string' ? data.slug : '',
+        slug: typeof doc?.slug === 'string' ? doc.slug : '',
         collection: 'pages',
         req,
       }),
-    useAsTitle: 'title',
+  },
+  access: {
+    admin: canAccessAdmin,
+    create: canCreate,
+    delete: canDelete,
+    read: authenticatedOrPublished,
+    update: canUpdate,
   },
   fields: [
     {
@@ -67,10 +86,11 @@ export const Pages: CollectionConfig<'pages'> = {
       type: 'tabs',
       tabs: [
         {
-          fields: [hero],
           label: 'Hero',
+          fields: [hero],
         },
         {
+          label: 'Content',
           fields: [
             {
               name: 'layout',
@@ -82,7 +102,6 @@ export const Pages: CollectionConfig<'pages'> = {
               },
             },
           ],
-          label: 'Content',
         },
         {
           name: 'meta',
@@ -99,13 +118,9 @@ export const Pages: CollectionConfig<'pages'> = {
             MetaImageField({
               relationTo: 'media',
             }),
-
             MetaDescriptionField({}),
             PreviewField({
-              // if the `generateUrl` function is configured
               hasGenerateFn: true,
-
-              // field paths to match the target field for data
               titlePath: 'meta.title',
               descriptionPath: 'meta.description',
             }),
@@ -118,6 +133,9 @@ export const Pages: CollectionConfig<'pages'> = {
       type: 'date',
       admin: {
         position: 'sidebar',
+        date: {
+          pickerAppearance: 'dayAndTime',
+        },
       },
     },
     ...slugField(),
@@ -130,7 +148,7 @@ export const Pages: CollectionConfig<'pages'> = {
   versions: {
     drafts: {
       autosave: {
-        interval: 100, // We set this interval for optimal live preview
+        interval: 100,
       },
     },
     maxPerDoc: 50,

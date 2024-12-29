@@ -1,5 +1,11 @@
-import type { CollectionConfig } from 'payload'
-
+import type { CollectionConfig, Access, Where } from 'payload'
+import { authenticatedOrPublished } from '../../access/authenticatedOrPublished'
+import { Banner } from '../../blocks/Banner/config'
+import { Code } from '../../blocks/Code/config'
+import { MediaBlock } from '../../blocks/MediaBlock/config'
+import { generatePreviewPath } from '../../utilities/generatePreviewPath'
+import { populateAuthors } from './hooks/populateAuthors'
+import { revalidateDelete, revalidatePost } from './hooks/revalidatePost'
 import {
   BlocksFeature,
   FixedToolbarFeature,
@@ -8,16 +14,6 @@ import {
   InlineToolbarFeature,
   lexicalEditor,
 } from '@payloadcms/richtext-lexical'
-
-import { authenticated } from '../../access/authenticated'
-import { authenticatedOrPublished } from '../../access/authenticatedOrPublished'
-import { Banner } from '../../blocks/Banner/config'
-import { Code } from '../../blocks/Code/config'
-import { MediaBlock } from '../../blocks/MediaBlock/config'
-import { generatePreviewPath } from '../../utilities/generatePreviewPath'
-import { populateAuthors } from './hooks/populateAuthors'
-import { revalidateDelete, revalidatePost } from './hooks/revalidatePost'
-
 import {
   MetaDescriptionField,
   MetaImageField,
@@ -27,46 +23,72 @@ import {
 } from '@payloadcms/plugin-seo/fields'
 import { slugField } from '@/fields/slug'
 
-export const Posts: CollectionConfig<'posts'> = {
-  slug: 'posts',
-  access: {
-    create: authenticated,
-    delete: authenticated,
-    read: authenticatedOrPublished,
-    update: authenticated,
-  },
-  // This config controls what's populated by default when a post is referenced
-  // https://payloadcms.com/docs/queries/select#defaultpopulate-collection-config-property
-  // Type safe if the collection slug generic is passed to `CollectionConfig` - `CollectionConfig<'posts'>
-  defaultPopulate: {
-    title: true,
-    slug: true,
-    categories: true,
-    meta: {
-      image: true,
-      description: true,
-    },
-  },
-  admin: {
-    defaultColumns: ['title', 'slug', 'updatedAt'],
-    livePreview: {
-      url: ({ data, req }) => {
-        const path = generatePreviewPath({
-          slug: typeof data?.slug === 'string' ? data.slug : '',
-          collection: 'posts',
-          req,
-        })
+// Define role-based access control functions
+const canAccessAdmin = ({ req: { user } }): boolean => {
+  return Boolean(user) // All authenticated users can view posts in admin
+}
 
-        return path
-      },
-    },
-    preview: (data, { req }) =>
+const canCreate = ({ req: { user } }): boolean => {
+  if (!user) return false
+  return ['administrator', 'editor', 'author'].includes(user.role || '')
+}
+
+const canUpdate = ({ req: { user } }): boolean | Where => {
+  if (!user) return false
+
+  // Administrators and editors can update any post
+  if (['administrator', 'editor'].includes(user.role || '')) return true
+
+  // Authors can only update their own posts
+  if (user.role === 'author') {
+    const where: Where = {
+      or: [
+        {
+          'authors.value': {
+            equals: user.id,
+          },
+        },
+        {
+          createdBy: {
+            equals: user.id,
+          },
+        },
+      ],
+    }
+    return where
+  }
+
+  return false
+}
+
+const canDelete = ({ req: { user } }): boolean => {
+  if (!user) return false
+
+  // Only administrators and editors can delete posts
+  return ['administrator', 'editor'].includes(user.role || '')
+}
+
+export const Posts: CollectionConfig = {
+  slug: 'posts',
+  admin: {
+    defaultColumns: ['title', 'slug', 'updatedAt', '_status'],
+    description: 'Create and manage blog posts with WordPress-like permissions',
+    group: 'Content',
+    useAsTitle: 'title',
+    hidden: ({ user }) => user?.role === 'subscriber',
+    preview: (doc, { req }) =>
       generatePreviewPath({
-        slug: typeof data?.slug === 'string' ? data.slug : '',
+        slug: typeof doc?.slug === 'string' ? doc.slug : '',
         collection: 'posts',
         req,
       }),
-    useAsTitle: 'title',
+  },
+  access: {
+    admin: canAccessAdmin,
+    create: canCreate,
+    delete: canDelete,
+    read: authenticatedOrPublished,
+    update: canUpdate,
   },
   fields: [
     {
@@ -78,6 +100,7 @@ export const Posts: CollectionConfig<'posts'> = {
       type: 'tabs',
       tabs: [
         {
+          label: 'Content',
           fields: [
             {
               name: 'heroImage',
@@ -87,6 +110,7 @@ export const Posts: CollectionConfig<'posts'> = {
             {
               name: 'content',
               type: 'richText',
+              required: true,
               editor: lexicalEditor({
                 features: ({ rootFeatures }) => {
                   return [
@@ -99,17 +123,38 @@ export const Posts: CollectionConfig<'posts'> = {
                   ]
                 },
               }),
-              label: false,
-              required: true,
             },
           ],
-          label: 'Content',
         },
         {
+          label: 'Meta',
           fields: [
+            {
+              name: 'categories',
+              type: 'relationship',
+              relationTo: 'categories',
+              hasMany: true,
+              admin: {
+                position: 'sidebar',
+              },
+            },
+            {
+              name: 'authors',
+              type: 'relationship',
+              relationTo: 'users',
+              hasMany: true,
+              admin: {
+                position: 'sidebar',
+              },
+              // Authors field is required for proper access control
+              required: true,
+              defaultValue: ({ user }) => [user?.id], // Set current user as default author
+            },
             {
               name: 'relatedPosts',
               type: 'relationship',
+              relationTo: 'posts',
+              hasMany: true,
               admin: {
                 position: 'sidebar',
               },
@@ -120,20 +165,8 @@ export const Posts: CollectionConfig<'posts'> = {
                   },
                 }
               },
-              hasMany: true,
-              relationTo: 'posts',
-            },
-            {
-              name: 'categories',
-              type: 'relationship',
-              admin: {
-                position: 'sidebar',
-              },
-              hasMany: true,
-              relationTo: 'categories',
             },
           ],
-          label: 'Meta',
         },
         {
           name: 'meta',
@@ -150,13 +183,9 @@ export const Posts: CollectionConfig<'posts'> = {
             MetaImageField({
               relationTo: 'media',
             }),
-
             MetaDescriptionField({}),
             PreviewField({
-              // if the `generateUrl` function is configured
               hasGenerateFn: true,
-
-              // field paths to match the target field for data
               titlePath: 'meta.title',
               descriptionPath: 'meta.description',
             }),
@@ -168,10 +197,10 @@ export const Posts: CollectionConfig<'posts'> = {
       name: 'publishedAt',
       type: 'date',
       admin: {
+        position: 'sidebar',
         date: {
           pickerAppearance: 'dayAndTime',
         },
-        position: 'sidebar',
       },
       hooks: {
         beforeChange: [
@@ -184,27 +213,16 @@ export const Posts: CollectionConfig<'posts'> = {
         ],
       },
     },
-    {
-      name: 'authors',
-      type: 'relationship',
-      admin: {
-        position: 'sidebar',
-      },
-      hasMany: true,
-      relationTo: 'users',
-    },
     // This field is only used to populate the user data via the `populateAuthors` hook
-    // This is because the `user` collection has access control locked to protect user privacy
-    // GraphQL will also not return mutated user data that differs from the underlying schema
     {
       name: 'populatedAuthors',
       type: 'array',
-      access: {
-        update: () => false,
-      },
       admin: {
         disabled: true,
         readOnly: true,
+      },
+      access: {
+        update: () => false,
       },
       fields: [
         {
@@ -227,7 +245,7 @@ export const Posts: CollectionConfig<'posts'> = {
   versions: {
     drafts: {
       autosave: {
-        interval: 100, // We set this interval for optimal live preview
+        interval: 100,
       },
     },
     maxPerDoc: 50,
