@@ -318,8 +318,7 @@ export interface User {
     syntaxHighlighting?: boolean | null;
   };
   status?: ('active' | 'spam' | 'deleted') | null;
-  roleSelect: 'administrator' | 'editor' | 'author' | 'subscriber';
-  role: string;
+  role: 'administrator' | 'editor' | 'author' | 'subscriber';
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -1106,7 +1105,6 @@ export interface UsersSelect<T extends boolean = true> {
         syntaxHighlighting?: T;
       };
   status?: T;
-  roleSelect?: T;
   role?: T;
   updatedAt?: T;
   createdAt?: T;

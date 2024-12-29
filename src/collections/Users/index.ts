@@ -5,7 +5,7 @@ type Role = 'administrator' | 'editor' | 'author' | 'subscriber'
 // Define access control functions based on user roles
 const isAdministrator = ({ req: { user } }) => {
   if (!user) return false
-  return user.role === 'administrator' || user.roleSelect === 'administrator'
+  return user.role === 'administrator'
 }
 
 export const Users: CollectionConfig = {
@@ -35,7 +35,7 @@ export const Users: CollectionConfig = {
     // Users can read their own profile, admins can read all
     read: ({ req: { user } }) => {
       if (!user) return false
-      if (user.role === 'administrator' || user.roleSelect === 'administrator') return true
+      if (user.role === 'administrator') return true
       return {
         id: {
           equals: user.id,
@@ -45,7 +45,7 @@ export const Users: CollectionConfig = {
     // Users can update their own profile, admins can update all
     update: ({ req: { user } }) => {
       if (!user) return false
-      if (user.role === 'administrator' || user.roleSelect === 'administrator') return true
+      if (user.role === 'administrator') return true
       return {
         id: {
           equals: user.id,
@@ -54,14 +54,14 @@ export const Users: CollectionConfig = {
     },
   },
   admin: {
-    defaultColumns: ['name', 'email', 'roleSelect', 'status'],
+    defaultColumns: ['name', 'email', 'role', 'status'],
     useAsTitle: 'name',
     description: '',
     group: 'Admin',
     // Hide the Users collection from subscribers in the sidebar
     hidden: ({ user }) => {
       if (!user) return true
-      return user.role === 'subscriber' || user.roleSelect === 'subscriber'
+      return user.role === 'subscriber'
     },
   },
   fields: [
@@ -184,9 +184,9 @@ export const Users: CollectionConfig = {
         description: 'User status',
       },
     },
-    // Role fields
+    // Role field
     {
-      name: 'roleSelect',
+      name: 'role',
       type: 'radio',
       required: true,
       defaultValue: 'subscriber',
@@ -217,41 +217,33 @@ export const Users: CollectionConfig = {
         description: 'The role determines what actions the user can perform',
       },
     },
-    {
-      name: 'role',
-      type: 'text',
-      required: true,
-      defaultValue: 'subscriber',
-      validate: (val) => {
-        const validRoles = ['administrator', 'editor', 'author', 'subscriber']
-        return validRoles.includes(val) || 'Invalid role'
-      },
-      hooks: {
-        beforeChange: [
-          ({ siblingData }) => {
-            return siblingData?.roleSelect || 'subscriber'
-          },
-        ],
-      },
-      admin: {
-        position: 'sidebar',
-        description: 'The role determines what actions the user can perform',
-        style: {
-          display: 'none',
-        },
-      },
-    },
   ],
   hooks: {
     beforeChange: [
-      ({ data }) => {
+      ({ data, operation, req }) => {
         // Set nickname to name if not provided
         if (!data.nickname && data.name) {
           data.nickname = data.name
         }
+
+        // Set role to administrator for first user
+        if (operation === 'create') {
+          const { payload } = req
+          return payload
+            .find({
+              collection: 'users',
+              limit: 1,
+            })
+            .then(({ docs }) => {
+              if (docs.length === 0) {
+                data.role = 'administrator'
+              }
+              return data
+            })
+        }
+
         return data
       },
     ],
   },
-  timestamps: true,
 }
